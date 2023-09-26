@@ -1,2 +1,15 @@
-*
-!.gitignore
+IsaacGymEnvs/isaacgymenvs/output
+__pycache__/
+*.pyc
+/IsaacGymEnvs/isaacgymenvs/runs/
+/IsaacGymEnvs/isaacgymenvs/wandb/
+*.sif
+/assets/
+/docker/
+/docs/
+/IsaacGymEnvs/docs/
+/IsaacGymEnvs/assets/
+/IsaacGymEnvs/wandb/
+/licenses/
+/python/
+create_conda_env_rlgpu.sh

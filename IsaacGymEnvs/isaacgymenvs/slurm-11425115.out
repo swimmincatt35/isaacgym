@@ -1,0 +1,10 @@
+## SLURM PROLOG ###############################################################
+##    Job ID : 11425115
+##  Job Name : train.sh
+##  Nodelist : gpu2264
+##      CPUs : 4
+##  Mem/Node : 30720 MB
+## Directory : /oscar/data/csun45/chsu35/isaacgym/IsaacGymEnvs/isaacgymenvs
+##   Job Started : Fri Sep 29 01:53:01 EDT 2023
+###############################################################################
+Helo!!

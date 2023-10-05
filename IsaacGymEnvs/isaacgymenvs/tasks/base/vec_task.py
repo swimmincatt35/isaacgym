@@ -105,7 +105,7 @@ class Env(ABC):
         self.num_environments = config["env"]["numEnvs"]
         self.num_agents = config["env"].get("numAgents", 1)  # used for multi-agent environments
 
-        self.num_observations = config["env"].get("numObservations", 0) # [CH] 2nd arg fallback values
+        self.num_observations = config["env"].get("numObservations", 0)
         self.num_states = config["env"].get("numStates", 0)
 
         self.obs_space = spaces.Box(np.ones(self.num_obs) * -np.Inf, np.ones(self.num_obs) * np.Inf)
@@ -274,6 +274,7 @@ class VecTask(Env):
         self.allocate_buffers()
 
         self.obs_dict = {}
+        
 
     def set_viewer(self):
         """Create the viewer."""

@@ -202,14 +202,13 @@ def launch_rlg_hydra(cfg: DictConfig):
     def build_runner(algo_observer):
         runner = Runner(algo_observer)
 
-        # Override algo_factory + player_factory
+        # [CH] default 3 algo_factory+player_factory are a2c_continuous, a2c_discrete, sac
         runner.algo_factory.register_builder('amp_continuous', lambda **kwargs : amp_continuous.AMPAgent(**kwargs))
         runner.player_factory.register_builder('amp_continuous', lambda **kwargs : amp_players.AMPPlayerContinuous(**kwargs))
 
         # Global variable: 
-        # [CH] register a model that can be initialized by network and **kwargs
+        # [CH] register an extra model/network
         model_builder.register_model('continuous_amp', lambda network, **kwargs : amp_models.ModelAMPContinuous(network))
-        # [CH] register a network that can be initialized by **kwargs
         model_builder.register_network('amp', lambda **kwargs : amp_network_builder.AMPBuilder())
 
         return runner
@@ -218,8 +217,11 @@ def launch_rlg_hydra(cfg: DictConfig):
     # create runner and set the settings
     runner = build_runner(MultiObserver(observers)) # [CH] Meta Observer wrapper, default only got RLGPUAlgoObserver()
     
-    # [CH] deepcopy config['params'], init by loading (multi/single)gpu, random seed, algos, etc.
+    # [CH] deepcopy rlg_config_dict['params'], init by loading gpu, random seed, algos, etc.
     runner.load(rlg_config_dict) 
+    '''[CH] rlg_config_dict
+    {'params': {'seed': 42, 'algo': {'name': 'a2c_continuous'}, 'model': {'name': 'continuous_a2c_logstd'}, 'network': {'name': 'actor_critic', 'separate': False, 'space': {'continuous': {'mu_activation': 'None', 'sigma_activation': 'None', 'mu_init': {'name': 'default'}, 'sigma_init': {'name': 'const_initializer', 'val': 0}, 'fixed_sigma': True}}, 'mlp': {'units': [32, 32], 'activation': 'elu', 'initializer': {'name': 'default'}, 'regularizer': {'name': 'None'}}}, 'load_checkpoint': False, 'load_path': '', 'config': {'name': 'CartpoleSample', 'full_experiment_name': None, 'env_name': 'rlgpu', 'multi_gpu': False, 'ppo': True, 'mixed_precision': False, 'normalize_input': True, 'normalize_value': True, 'num_actors': 64, 'reward_shaper': {'scale_value': 0.1}, 'normalize_advantage': True, 'gamma': 0.99, 'tau': 0.95, 'learning_rate': 0.0003, 'lr_schedule': 'adaptive', 'kl_threshold': 0.008, 'score_to_win': 20000, 'max_epochs': 100, 'save_best_after': 50, 'save_frequency': 25, 'grad_norm': 1.0, 'entropy_coef': 0.0, 'truncate_grads': True, 'e_clip': 0.2, 'horizon_length': 16, 'minibatch_size': 1024, 'mini_epochs': 8, 'critic_coef': 4, 'clip_value': True, 'seq_len': 4, 'bounds_loss_coef': 0.0001, 'device': 'cuda:0', 'population_based_training': False, 'pbt_idx': None}}}
+    '''
     # [CH] literally does nothing
     runner.reset()
 
@@ -238,22 +240,22 @@ def launch_rlg_hydra(cfg: DictConfig):
         # [CH] Set player configs
         player_config = {}
         player_config["games_num"] = 10
-        # player_config["max_steps"] = 600 <- [CH] This was hard coded :( https://github.com/Denys88/rl_games/blob/66ce12f30f2582d43c818356baba1812669841db/rl_games/common/player.py#L76 
+        # [CH] default=True, but we want to sample action with noise for diversity
+        # player_config["deterministic"] = False 
         runner.params['config']['player'] = player_config
 
 
     # [CH] cfg written in ./runs/Cartpole_23-15-26-27/config.yaml file
-    # [CH] ckpt pipeline for both train and play, 
+    # [CH] ckpt pipeline for both train and play
     # [CH] default algo is a2c_continuous: https://github.com/Denys88/rl_games/blob/66ce12f30f2582d43c818356baba1812669841db/rl_games/algos_torch/a2c_continuous.py#L70
     runner.run({
         'train': not cfg.test,          # [CH] agent.train(), https://github.com/Denys88/rl_games/blob/66ce12f30f2582d43c818356baba1812669841db/rl_games/common/a2c_common.py#L1290 
         'play': cfg.test,               # [CH] player.run(), https://github.com/Denys88/rl_games/blob/66ce12f30f2582d43c818356baba1812669841db/rl_games/common/player.py#L273 
         'checkpoint': cfg.checkpoint,
-        'sigma': cfg.sigma if cfg.sigma != '' else None
+        'sigma': cfg.sigma if cfg.sigma != '' else None,
     })
-
-    
-
 
 if __name__ == "__main__":
     launch_rlg_hydra()
+
+    # [CH] save checkpoint code: https://github.com/Denys88/rl_games/blob/66ce12f30f2582d43c818356baba1812669841db/rl_games/common/a2c_common.py#L1014

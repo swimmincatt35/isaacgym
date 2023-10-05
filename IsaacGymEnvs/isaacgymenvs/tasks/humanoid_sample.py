@@ -48,12 +48,12 @@ class Humanoid(VecTask):
         self.cfg = cfg
 
         # visualization logic, added by Nate
-        self.num_envs_to_visualize = 2
+        self.num_envs_to_visualize = 1
         self.num_frames_to_visualize = math.inf
-        self.img_dir = "./output/humanoid"
+        self.img_dir = "../../outputs/humanoid"
         if not os.path.exists(self.img_dir):
-            os.makedirs(self.img_dir)
-        self.resolution = 256
+            os.mkdir(self.img_dir)
+        self.resolution = 1024
         
         self.randomization_params = self.cfg["task"]["randomization_params"]
         self.randomize = self.cfg["task"]["randomize"]
@@ -78,9 +78,6 @@ class Humanoid(VecTask):
 
         self.cfg["env"]["numObservations"] = 108
         self.cfg["env"]["numActions"] = 21
-
-        self.is_train = self.cfg["env"].get("is_train", True)
-
 
         super().__init__(config=self.cfg, rl_device=rl_device, sim_device=sim_device, graphics_device_id=graphics_device_id, headless=headless, virtual_screen_capture=virtual_screen_capture, force_render=force_render)
 
@@ -130,17 +127,6 @@ class Humanoid(VecTask):
         self.dt = self.cfg["sim"]["dt"]
         self.potentials = to_torch([-1000./self.dt], device=self.device).repeat(self.num_envs)
         self.prev_potentials = self.potentials.clone()
-
-        # [CH] Randomize init dof_state
-        self.reset_idx(torch.arange(self.num_envs).to(self.device))
-        self.gym.refresh_dof_state_tensor(self.sim)
-        self.gym.refresh_actor_root_state_tensor(self.sim)
-
-        # [CH]
-        self.gym.simulate(self.sim)
-        self.max_frame_length = 25000
-        self.frame_no = 0
-
 
     def create_sim(self):
         self.up_axis_idx = 2 # index of up axis: Y=1, Z=2
@@ -289,39 +275,29 @@ class Humanoid(VecTask):
                 elif evt.action == "record_frames" and evt.value > 0:
                     self.record_frames = not self.record_frames
 
-            if not self.is_train:
-                # fetch results
-                # if self.device != 'cpu':
-                self.gym.fetch_results(self.sim, True)
-                self.gym.step_graphics(self.sim)
+            # fetch results
+            # if self.device != 'cpu':
+            self.gym.fetch_results(self.sim, True)
+            self.gym.step_graphics(self.sim)
 
-                # render sensors and refresh camera tensors
-                self.gym.render_all_camera_sensors(self.sim)
-                self.gym.start_access_image_tensors(self.sim)
+            # render sensors and refresh camera tensors
+            self.gym.render_all_camera_sensors(self.sim)
+            self.gym.start_access_image_tensors(self.sim)
 
-                # write out state and sensors periodically during the first little while
-                if self.control_steps < self.num_frames_to_visualize:
+            # write out state and sensors periodically during the first little while
+            if self.control_steps < self.num_frames_to_visualize:
 
-                    print("num_frames_to_visualize", self.num_frames_to_visualize)
+                if self.control_steps % 10 == 0:
+                    print("========= Saving frame %d ==========" % self.control_steps)
 
-                    if self.control_steps % 10 == 0:
-                        print("========= Saving frame %d ==========" % self.control_steps)
+                for i in range(min(self.num_envs, self.num_envs_to_visualize)):
 
-                    for i in range(min(self.num_envs, self.num_envs_to_visualize)):
+                    # write tensor to image
+                    fname = os.path.join(self.img_dir, "cam-%04d-%04d.png" % (i, self.control_steps))
+                    cam_img = self.cam_tensors[i].cpu().numpy()
+                    imageio.imwrite(fname, cam_img)
 
-                        # if ((i%self.num_envs!=0) and (i%self.num_envs!=1)):
-                        #     continue
-
-                        # if self.frame_no > self.max_frame_length:
-                        #     exit(0)
-
-                        # write tensor to image
-                        fname = os.path.join(self.img_dir, "cam-%04d-%04d.png" % (i, self.control_steps))
-                        cam_img = self.cam_tensors[i].cpu().numpy()
-                        imageio.imwrite(fname, cam_img)
-
-                self.gym.draw_viewer(self.viewer, self.sim, True)
-                self.frame_no += 1
+            self.gym.draw_viewer(self.viewer, self.sim, True)
 
     def compute_reward(self, actions):
         self.rew_buf[:], self.reset_buf = compute_humanoid_reward(
@@ -361,10 +337,6 @@ class Humanoid(VecTask):
         # Randomization can happen only at reset time, since it can reset actor positions on GPU
         if self.randomize:
             self.apply_randomizations(self.randomization_params)
-
-        # [CH] turn on/off random
-        # positions = 0.5 * (torch.ones((len(env_ids), self.num_dof), device=self.device))
-        # velocities = 0.5 * (torch.ones((len(env_ids), self.num_dof), device=self.device))
 
         positions = torch_rand_float(-0.2, 0.2, (len(env_ids), self.num_dof), device=self.device)
         velocities = torch_rand_float(-0.1, 0.1, (len(env_ids), self.num_dof), device=self.device)
